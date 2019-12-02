@@ -10,7 +10,6 @@ namespace Meadow.Foundation.Sensors.Buttons
 	public class PushButton : IButton
 	{
 		#region Properties
-
 		/// <summary>
 		/// This duration controls the debounce filter. It also has the effect
 		/// of rate limiting clicks. Decrease this time to allow users to click
@@ -24,6 +23,11 @@ namespace Meadow.Foundation.Sensors.Buttons
 				DigitalIn.DebounceDuration = (int)value.TotalMilliseconds;
 			}
 		}
+
+		/// <summary>
+		/// Returns if this is connected to a pull up resistor, or a pull down resistor.
+		/// </summary>
+		public ResistorMode Resistor { get; private set; }
 
 		/// <summary>
 		/// Returns the current raw state of the switch. If the switch 
@@ -60,11 +64,9 @@ namespace Meadow.Foundation.Sensors.Buttons
 		/// Raised when the button circuit is pressed for at least 500ms.
 		/// </summary>
 		public event EventHandler LongPressClicked = delegate { };
-
 		#endregion
 
 		#region Member variables / fields
-
 		/// <summary>
 		/// Minimum DateTime value when the button was pushed
 		/// </summary>
@@ -74,7 +76,6 @@ namespace Meadow.Foundation.Sensors.Buttons
 		/// Maximum DateTime value when the button was just pushed
 		/// </summary>
 		protected DateTime _buttonPressStart = DateTime.MaxValue;
-
 		#endregion
 
 		#region Constructors
@@ -85,51 +86,39 @@ namespace Meadow.Foundation.Sensors.Buttons
 		private PushButton() { }
 
 		/// <summary>
-		/// Creates PushButto a digital input port connected on a IIOdevice, especifying Interrupt Mode, Circuit Type and optionally Debounce filter duration.
+		/// Creates a PushButton on a digital input port connected on a IIOdevice, specifying Interrupt Mode, Circuit Type and optionally Debounce filter duration.
 		/// </summary>
-		/// <param name="device"></param>
+		/// <param name="device">The IODevice to connect the button to.</param>
 		/// <param name="inputPin">The input pin to bind this button to.</param>
+		/// <param name="resistorMode">Determines if this is a pull up or pull down resistor configuration.</param>
 		/// <param name="debounceDuration">the duration in miliseconds to debounce the button for</param>
-		/// <param name="resistorMode">Pull up or pull down</param>
-		public PushButton(IIODevice device, IPin inputPin, ResistorMode resistorMode = ResistorMode.Disabled, int debounceDuration = 20)
+		public PushButton(IIODevice device, IPin inputPin, ResistorMode resistorMode, uint debounceDuration = 20)
 		{
-			// if we terminate in ground, we need to pull the port high to test for circuit completion, otherwise down.
-			DigitalIn = device.CreateDigitalInputPort(inputPin, InterruptMode.EdgeBoth, resistorMode, debounceDuration);
+			DigitalIn = device.CreateDigitalInputPort(inputPin, InterruptMode.EdgeBoth, resistorMode, (int)debounceDuration);
 			DigitalIn.Changed += DigitalInChanged;
 		}
 
 		/// <summary>
-		/// Creates a PushButton on a digital input portespecifying Interrupt Mode, Circuit Type and optionally Debounce filter duration.
+		/// Creates a PushButton on a digital input port specifying Interrupt Mode, Circuit Type and optionally Debounce filter duration.
 		/// </summary>
 		/// <param name="interruptPort"></param>
+		/// <param name="resistorMode">Determines if this is a pull up or pull down resistor configuration.</param>
 		/// <param name="debounceDuration"></param>
-		public PushButton(IDigitalInputPort interruptPort, int debounceDuration = 20)
+		public PushButton(IDigitalInputPort interruptPort, ResistorMode resistorMode, uint debounceDuration = 20)
 		{
 			DigitalIn = interruptPort;
-			DebounceDuration = new TimeSpan(0, 0, 0, 0, debounceDuration);
+			DigitalIn.Resistor = resistorMode;
+			DebounceDuration = new TimeSpan(0, 0, 0, 0, (int)debounceDuration);
 			DigitalIn.Changed += DigitalInChanged;
 		}
-
 		#endregion
 
 		#region Methods
 		private void DigitalInChanged(object sender, DigitalInputPortEventArgs e)
 		{
-			bool pressed = false;
-			bool released = false;
+			bool pressed = DigitalIn.Resistor == ResistorMode.PullDown ? false : true;
+			bool released = DigitalIn.Resistor == ResistorMode.PullDown ? true : false;
 			DateTime pressStartAt = default;
-
-			// determines if it should check state start/end based on pull up or pull down, appropriately.
-			if (DigitalIn.Resistor == ResistorMode.PullUp)
-			{
-				pressed = DigitalIn.Resistor == ResistorMode.PullUp ? true : false;
-				released = DigitalIn.Resistor == ResistorMode.PullUp ? false : true;
-			}
-			else
-			{
-				pressed = DigitalIn.Resistor == ResistorMode.PullDown ? true : false;
-				released = DigitalIn.Resistor == ResistorMode.PullDown ? false : true;
-			}
 
 			if (State == pressed)
 			{
@@ -184,7 +173,6 @@ namespace Meadow.Foundation.Sensors.Buttons
 		{
 			LongPressClicked(this, new EventArgs());
 		}
-
 		#endregion
 	}
 }
